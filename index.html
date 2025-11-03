@@ -1,0 +1,203 @@
+
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard Pencerapan Guru</title>
+  <style>
+    :root { --bg:#f6f7fb; --card:#fff; --ink:#111827; --muted:#6b7280; --line:#e5e7eb; --brand:#4f46e5; --ok:#059669; --warn:#dc2626 }
+    *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink)}
+    header{background:var(--brand);color:#fff;padding:16px;text-align:center;font-weight:700}
+    .wrap{max-width:960px;margin:18px auto;padding:0 12px}
+    .card{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+    .card .head{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+    .card .body{padding:14px}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    input,textarea{border:1px solid var(--line);border-radius:10px;padding:8px 10px;font:inherit}
+    textarea{min-height:90px;width:100%;resize:vertical}
+    .btn{border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 12px;cursor:pointer}
+    .btn.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+    table{width:100%;border-collapse:separate;border-spacing:0}
+    thead th{position:sticky;top:0;background:#f3f4f6;border-bottom:1px solid var(--line);text-align:left;padding:8px}
+    tbody td{border-top:1px solid var(--line);padding:8px;vertical-align:top}
+    .toggle{border:1px solid var(--line);border-radius:999px;padding:6px 10px;font-size:13px}
+    .on{background:#ecfdf5;border-color:#a7f3d0;color:#059669}
+    .off{background:#fff1f2;border-color:#fecdd3;color:#dc2626}
+    .muted{color:#6b7280;font-size:13px}
+    .name{padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:#f9fafb;margin-top:6px}
+    .grid{display:grid;gap:12px;grid-template-columns:repeat(3,1fr)}
+    .status{font-size:12px;color:#6b7280}
+  </style>
+</head>
+<body>
+  <header>Dashboard Pencerapan Guru</header>
+  <div class="wrap">
+    <div class="status">Status: <span id="status">Memuat…</span></div>
+
+    <section class="card" style="margin-top:12px">
+      <div class="head"><strong>Tambah Nama Guru</strong></div>
+      <div class="body">
+        <div class="row">
+          <input id="singleName" placeholder="Nama guru (contoh: Cikgu A)" style="flex:1" />
+          <button id="addOne" class="btn primary">Tambah</button>
+        </div>
+        <div style="height:10px"></div>
+        <div class="muted">Tambah pukal (satu nama setiap baris)</div>
+        <textarea id="bulk" placeholder="Cikgu A&#10;Cikgu B&#10;Cikgu C"></textarea>
+        <div style="text-align:right;margin-top:8px"><button id="addBulk" class="btn primary">Tambah Pukal</button></div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:12px">
+      <div class="head"><strong>Senarai Guru</strong></div>
+      <div class="body" style="padding:0">
+        <div style="overflow:auto;max-height:60vh">
+          <table>
+            <thead>
+              <tr>
+                <th style="min-width:220px">Nama</th>
+                <th>Penilaian Kendiri</th>
+                <th>Pencerapan 1</th>
+                <th>Pencerapan 2</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid" style="margin-top:12px">
+      <div class="card">
+        <div class="head"><strong>Penilaian Kendiri</strong><span class="status" id="c1"></span></div>
+        <div class="body">
+          <div class="muted">Sudah Hantar</div>
+          <div id="s1_yes"></div>
+          <div style="height:8px"></div>
+          <div class="muted">Belum Hantar</div>
+          <div id="s1_no"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="head"><strong>Pencerapan 1</strong><span class="status" id="c2"></span></div>
+        <div class="body">
+          <div class="muted">Sudah Hantar</div>
+          <div id="s2_yes"></div>
+          <div style="height:8px"></div>
+          <div class="muted">Belum Hantar</div>
+          <div id="s2_no"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="head"><strong>Pencerapan 2</strong><span class="status" id="c3"></span></div>
+        <div class="body">
+          <div class="muted">Sudah Hantar</div>
+          <div id="s3_yes"></div>
+          <div style="height:8px"></div>
+          <div class="muted">Belum Hantar</div>
+          <div id="s3_no"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzbBpjOwuuCK8Jb6BZ5NumEfrgKrEUK24yitYG7IvoMv90qjPyLLkzMP8aT37asN2M8/exec";
+    const $ = (id)=>document.getElementById(id);
+    const statusEl = $("status");
+    let TEACHERS = [];
+
+    function setStatus(msg){ statusEl.textContent = msg; }
+
+    async function fetchAll(){
+      try{
+        setStatus("Memuat data…");
+        const res = await fetch(SCRIPT_URL);
+        const json = await res.json();
+        if(json.ok){ TEACHERS = json.data||[]; render(); setStatus("Terselaras dengan Google Sheet."); }
+        else{ setStatus("Ralat memuat: "+(json.error||"")); }
+      }catch(e){ setStatus("Gagal memuat data: "+e); }
+    }
+
+    async function post(body){
+      const res = await fetch(SCRIPT_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+      return res.json();
+    }
+
+    function render(){
+      const tb = $("tableBody"); tb.innerHTML = "";
+      if(!TEACHERS.length){
+        const tr = document.createElement("tr"); const td = document.createElement("td");
+        td.colSpan = 4; td.style.textAlign="center"; td.style.padding="16px"; td.className="muted";
+        td.textContent = "Tiada nama. Tambah seorang atau pukal di atas."; tr.appendChild(td); tb.appendChild(tr);
+      }else{
+        TEACHERS.forEach(t=>{
+          const tr = document.createElement("tr");
+          tr.innerHTML = "
+            <td><b>"+esc(t.name||"")+"</b></td>
+            <td>"+toggleHtml(t.name,"s1",!!t.s1)+"</td>
+            <td>"+toggleHtml(t.name,"s2",!!t.s2)+"</td>
+            <td>"+toggleHtml(t.name,"s3",!!t.s3)+"</td>
+          ";
+          tb.appendChild(tr);
+        });
+      }
+      renderCards();
+      attachToggleEvents();
+    }
+
+    function toggleHtml(name,key,on){
+      return '<button class="toggle '+(on?'on':'off')+'" data-name="'+escq(name)+'" data-key="'+key+'" data-on="'+on+'">'+(on?'Sudah':'Belum')+'</button>';
+    }
+
+    function attachToggleEvents(){
+      document.querySelectorAll("[data-key]").forEach(el=>{
+        el.addEventListener("click", async ()=>{
+          const name = el.getAttribute("data-name");
+          const key = el.getAttribute("data-key");
+          const on  = el.getAttribute("data-on")==="true";
+          el.disabled = true; el.textContent = "…";
+          const resp = await post({ action:"toggle", id:"", key, value: !on, name });
+          if(resp.ok){ await fetchAll(); } else { alert("Gagal kemas kini: "+(resp.error||"")); el.disabled=false; }
+        });
+      });
+    }
+
+    $("addOne").addEventListener("click", async ()=>{
+      const n = $("singleName").value.trim(); if(!n) return;
+      $("addOne").disabled=true; $("addOne").textContent="…";
+      const resp = await post({ action:"addMany", names:[n] });
+      $("addOne").disabled=false; $("addOne").textContent="Tambah"; $("singleName").value="";
+      if(resp.ok) fetchAll(); else alert("Gagal tambah: "+(resp.error||""));
+    });
+
+    $("addBulk").addEventListener("click", async ()=>{
+      const raw = $("bulk").value; if(!raw.trim()) return;
+      const names = raw.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+      $("addBulk").disabled=true; $("addBulk").textContent="…";
+      const resp = await post({ action:"addMany", names });
+      $("addBulk").disabled=false; $("addBulk").textContent="Tambah Pukal"; $("bulk").value="";
+      if(resp.ok) fetchAll(); else alert("Gagal tambah pukal: "+(resp.error||""));
+    });
+
+    function renderCards(){
+      function split(k){ return { yes: TEACHERS.filter(t=>!!t[k]), no: TEACHERS.filter(t=>!t[k]) }; }
+      const s1 = split("s1"), s2 = split("s2"), s3 = split("s3");
+      paint("s1_yes", s1.yes); paint("s1_no", s1.no); $("c1").textContent = " "+s1.yes.length+" sudah • "+s1.no.length+" belum";
+      paint("s2_yes", s2.yes); paint("s2_no", s2.no); $("c2").textContent = " "+s2.yes.length+" sudah • "+s2.no.length+" belum";
+      paint("s3_yes", s3.yes); paint("s3_no", s3.no); $("c3").textContent = " "+s3.yes.length+" sudah • "+s3.no.length+" belum";
+    }
+
+    function paint(id, arr){
+      const el = $(id); el.innerHTML = arr.length ? arr.map(t=>'<div class="name">'+esc(t.name)+'</div>').join("") : '<div class="muted">—</div>';
+    }
+
+    // utils
+    function esc(s){ return String(s).replace(/[&<>"]/g, function(c){{ return ({{"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}})[c]; }}); }
+    function escq(s){ return String(s).replace(/['\"]/g, function(c){{ return ({{"'":"\\'","\"":"\\\""}})[c]; }}); }
+
+    fetchAll();
+  </script>
+</body>
+</html>
