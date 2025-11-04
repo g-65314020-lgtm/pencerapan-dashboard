@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ms">
 <head>
@@ -16,18 +15,22 @@
     .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
     input,textarea{border:1px solid var(--line);border-radius:10px;padding:8px 10px;font:inherit}
     textarea{min-height:90px;width:100%;resize:vertical}
-    .btn{border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 12px;cursor:pointer}
+    .btn{border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;font:inherit}
+    .btn:disabled{opacity:0.5;cursor:not-allowed}
     .btn.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+    .btn.danger{background:var(--warn);color:#fff;border-color:var(--warn)}
     table{width:100%;border-collapse:separate;border-spacing:0}
     thead th{position:sticky;top:0;background:#f3f4f6;border-bottom:1px solid var(--line);text-align:left;padding:8px}
     tbody td{border-top:1px solid var(--line);padding:8px;vertical-align:top}
-    .toggle{border:1px solid var(--line);border-radius:999px;padding:6px 10px;font-size:13px}
+    .toggle{border:1px solid var(--line);border-radius:999px;padding:6px 10px;font-size:13px;cursor:pointer;background:#fff}
+    .toggle:disabled{opacity:0.5;cursor:not-allowed}
     .on{background:#ecfdf5;border-color:#a7f3d0;color:#059669}
     .off{background:#fff1f2;border-color:#fecdd3;color:#dc2626}
     .muted{color:#6b7280;font-size:13px}
     .name{padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:#f9fafb;margin-top:6px}
     .grid{display:grid;gap:12px;grid-template-columns:repeat(3,1fr)}
     .status{font-size:12px;color:#6b7280}
+    @media(max-width:768px){.grid{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
@@ -36,7 +39,10 @@
     <div class="status">Status: <span id="status">Memuat…</span></div>
 
     <section class="card" style="margin-top:12px">
-      <div class="head"><strong>Tambah Nama Guru</strong></div>
+      <div class="head">
+        <strong>Tambah Nama Guru</strong>
+        <button id="resetBtn" class="btn danger" style="font-size:12px;padding:4px 8px">Reset Semua Data</button>
+      </div>
       <div class="body">
         <div class="row">
           <input id="singleName" placeholder="Nama guru (contoh: Cikgu A)" style="flex:1" />
@@ -103,101 +109,202 @@
   </div>
 
   <script>
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzbBpjOwuuCK8Jb6BZ5NumEfrgKrEUK24yitYG7IvoMv90qjPyLLkzMP8aT37asN2M8/exec";
-    const $ = (id)=>document.getElementById(id);
+    const $ = (id) => document.getElementById(id);
     const statusEl = $("status");
     let TEACHERS = [];
 
-    function setStatus(msg){ statusEl.textContent = msg; }
+    function setStatus(msg) { 
+      statusEl.textContent = msg; 
+    }
 
-    async function fetchAll(){
-      try{
+    async function loadData() {
+      try {
         setStatus("Memuat data…");
-        const res = await fetch(SCRIPT_URL);
-        const json = await res.json();
-        if(json.ok){ TEACHERS = json.data||[]; render(); setStatus("Terselaras dengan Google Sheet."); }
-        else{ setStatus("Ralat memuat: "+(json.error||"")); }
-      }catch(e){ setStatus("Gagal memuat data: "+e); }
+        const result = await window.storage.get('teachers-data', true);
+        if (result && result.value) {
+          TEACHERS = JSON.parse(result.value);
+        } else {
+          TEACHERS = [];
+        }
+        render();
+        setStatus("Data berjaya dimuat. (Dikongsi dengan semua pengguna)");
+      } catch (e) {
+        console.log('No existing data or error:', e);
+        TEACHERS = [];
+        render();
+        setStatus("Tiada data sedia ada. Sila tambah guru.");
+      }
     }
 
-    async function post(body){
-      const res = await fetch(SCRIPT_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
-      return res.json();
+    async function saveData() {
+      try {
+        await window.storage.set('teachers-data', JSON.stringify(TEACHERS), true);
+        setStatus("Data berjaya disimpan dan dikongsi.");
+      } catch (e) {
+        setStatus("Ralat menyimpan data: " + e.message);
+        console.error('Save error:', e);
+      }
     }
 
-    function render(){
-      const tb = $("tableBody"); tb.innerHTML = "";
-      if(!TEACHERS.length){
-        const tr = document.createElement("tr"); const td = document.createElement("td");
-        td.colSpan = 4; td.style.textAlign="center"; td.style.padding="16px"; td.className="muted";
-        td.textContent = "Tiada nama. Tambah seorang atau pukal di atas."; tr.appendChild(td); tb.appendChild(tr);
-      }else{
-        TEACHERS.forEach(t=>{
+    function render() {
+      const tb = $("tableBody");
+      tb.innerHTML = "";
+      
+      if (!TEACHERS.length) {
+        const tr = document.createElement("tr");
+        const td = document.createElement("td");
+        td.colSpan = 4;
+        td.style.textAlign = "center";
+        td.style.padding = "16px";
+        td.className = "muted";
+        td.textContent = "Tiada nama. Tambah seorang atau pukal di atas.";
+        tr.appendChild(td);
+        tb.appendChild(tr);
+      } else {
+        TEACHERS.forEach((t, idx) => {
           const tr = document.createElement("tr");
-          tr.innerHTML = "
-            <td><b>"+esc(t.name||"")+"</b></td>
-            <td>"+toggleHtml(t.name,"s1",!!t.s1)+"</td>
-            <td>"+toggleHtml(t.name,"s2",!!t.s2)+"</td>
-            <td>"+toggleHtml(t.name,"s3",!!t.s3)+"</td>
-          ";
+          tr.innerHTML = `
+            <td><b>${esc(t.name || "")}</b></td>
+            <td>${toggleHtml(idx, "s1", !!t.s1)}</td>
+            <td>${toggleHtml(idx, "s2", !!t.s2)}</td>
+            <td>${toggleHtml(idx, "s3", !!t.s3)}</td>
+          `;
           tb.appendChild(tr);
         });
       }
+      
       renderCards();
       attachToggleEvents();
     }
 
-    function toggleHtml(name,key,on){
-      return '<button class="toggle '+(on?'on':'off')+'" data-name="'+escq(name)+'" data-key="'+key+'" data-on="'+on+'">'+(on?'Sudah':'Belum')+'</button>';
+    function toggleHtml(idx, key, on) {
+      return `<button class="toggle ${on ? 'on' : 'off'}" data-idx="${idx}" data-key="${key}">${on ? 'Sudah' : 'Belum'}</button>`;
     }
 
-    function attachToggleEvents(){
-      document.querySelectorAll("[data-key]").forEach(el=>{
-        el.addEventListener("click", async ()=>{
-          const name = el.getAttribute("data-name");
+    function attachToggleEvents() {
+      document.querySelectorAll("[data-key]").forEach(el => {
+        el.addEventListener("click", async () => {
+          const idx = parseInt(el.getAttribute("data-idx"));
           const key = el.getAttribute("data-key");
-          const on  = el.getAttribute("data-on")==="true";
-          el.disabled = true; el.textContent = "…";
-          const resp = await post({ action:"toggle", id:"", key, value: !on, name });
-          if(resp.ok){ await fetchAll(); } else { alert("Gagal kemas kini: "+(resp.error||"")); el.disabled=false; }
+          
+          el.disabled = true;
+          const originalText = el.textContent;
+          el.textContent = "…";
+          
+          try {
+            TEACHERS[idx][key] = !TEACHERS[idx][key];
+            await saveData();
+            render();
+          } catch (e) {
+            alert("Gagal kemas kini: " + e.message);
+            el.disabled = false;
+            el.textContent = originalText;
+          }
         });
       });
     }
 
-    $("addOne").addEventListener("click", async ()=>{
-      const n = $("singleName").value.trim(); if(!n) return;
-      $("addOne").disabled=true; $("addOne").textContent="…";
-      const resp = await post({ action:"addMany", names:[n] });
-      $("addOne").disabled=false; $("addOne").textContent="Tambah"; $("singleName").value="";
-      if(resp.ok) fetchAll(); else alert("Gagal tambah: "+(resp.error||""));
+    $("addOne").addEventListener("click", async () => {
+      const n = $("singleName").value.trim();
+      if (!n) return;
+      
+      $("addOne").disabled = true;
+      $("addOne").textContent = "…";
+      
+      try {
+        TEACHERS.push({ name: n, s1: false, s2: false, s3: false });
+        await saveData();
+        $("singleName").value = "";
+        render();
+      } catch (e) {
+        alert("Gagal tambah: " + e.message);
+      } finally {
+        $("addOne").disabled = false;
+        $("addOne").textContent = "Tambah";
+      }
     });
 
-    $("addBulk").addEventListener("click", async ()=>{
-      const raw = $("bulk").value; if(!raw.trim()) return;
-      const names = raw.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
-      $("addBulk").disabled=true; $("addBulk").textContent="…";
-      const resp = await post({ action:"addMany", names });
-      $("addBulk").disabled=false; $("addBulk").textContent="Tambah Pukal"; $("bulk").value="";
-      if(resp.ok) fetchAll(); else alert("Gagal tambah pukal: "+(resp.error||""));
+    $("addBulk").addEventListener("click", async () => {
+      const raw = $("bulk").value;
+      if (!raw.trim()) return;
+      
+      const names = raw.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+      if (!names.length) return;
+      
+      $("addBulk").disabled = true;
+      $("addBulk").textContent = "…";
+      
+      try {
+        names.forEach(name => {
+          TEACHERS.push({ name, s1: false, s2: false, s3: false });
+        });
+        await saveData();
+        $("bulk").value = "";
+        render();
+      } catch (e) {
+        alert("Gagal tambah pukal: " + e.message);
+      } finally {
+        $("addBulk").disabled = false;
+        $("addBulk").textContent = "Tambah Pukal";
+      }
     });
 
-    function renderCards(){
-      function split(k){ return { yes: TEACHERS.filter(t=>!!t[k]), no: TEACHERS.filter(t=>!t[k]) }; }
+    $("resetBtn").addEventListener("click", async () => {
+      if (!confirm("Adakah anda pasti mahu memadam SEMUA data? Tindakan ini tidak boleh dibatalkan dan akan mempengaruhi semua pengguna!")) {
+        return;
+      }
+      
+      try {
+        await window.storage.delete('teachers-data', true);
+        TEACHERS = [];
+        render();
+        setStatus("Semua data telah dipadam.");
+      } catch (e) {
+        alert("Gagal memadam data: " + e.message);
+      }
+    });
+
+    function renderCards() {
+      function split(k) {
+        return {
+          yes: TEACHERS.filter(t => !!t[k]),
+          no: TEACHERS.filter(t => !t[k])
+        };
+      }
+      
       const s1 = split("s1"), s2 = split("s2"), s3 = split("s3");
-      paint("s1_yes", s1.yes); paint("s1_no", s1.no); $("c1").textContent = " "+s1.yes.length+" sudah • "+s1.no.length+" belum";
-      paint("s2_yes", s2.yes); paint("s2_no", s2.no); $("c2").textContent = " "+s2.yes.length+" sudah • "+s2.no.length+" belum";
-      paint("s3_yes", s3.yes); paint("s3_no", s3.no); $("c3").textContent = " "+s3.yes.length+" sudah • "+s3.no.length+" belum";
+      
+      paint("s1_yes", s1.yes);
+      paint("s1_no", s1.no);
+      $("c1").textContent = ` ${s1.yes.length} sudah • ${s1.no.length} belum`;
+      
+      paint("s2_yes", s2.yes);
+      paint("s2_no", s2.no);
+      $("c2").textContent = ` ${s2.yes.length} sudah • ${s2.no.length} belum`;
+      
+      paint("s3_yes", s3.yes);
+      paint("s3_no", s3.no);
+      $("c3").textContent = ` ${s3.yes.length} sudah • ${s3.no.length} belum`;
     }
 
-    function paint(id, arr){
-      const el = $(id); el.innerHTML = arr.length ? arr.map(t=>'<div class="name">'+esc(t.name)+'</div>').join("") : '<div class="muted">—</div>';
+    function paint(id, arr) {
+      const el = $(id);
+      el.innerHTML = arr.length 
+        ? arr.map(t => `<div class="name">${esc(t.name)}</div>`).join("") 
+        : '<div class="muted">—</div>';
     }
 
-    // utils
-    function esc(s){ return String(s).replace(/[&<>"]/g, function(c){{ return ({{"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}})[c]; }}); }
-    function escq(s){ return String(s).replace(/['\"]/g, function(c){{ return ({{"'":"\\'","\"":"\\\""}})[c]; }}); }
+    function esc(s) {
+      return String(s).replace(/[&<>"]/g, c => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "\"": "&quot;"
+      })[c]);
+    }
 
-    fetchAll();
+    // Load data on startup
+    loadData();
   </script>
 </body>
 </html>
